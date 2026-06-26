@@ -2,7 +2,8 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- 🔥 모바일 최적화: 화면 확대/축소 완벽 차단 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>달려라 햄스터!</title>
     <style>
         @font-face {
@@ -19,15 +20,28 @@
             height: 100vh;
             margin: 0;
             background-color: #2b2b2b;
+            /* 🔥 모바일 스크롤 방지 */
+            overflow: hidden; 
+            touch-action: none; 
         }
 
         canvas {
-            border: 8px solid #D6B99A;
+            /* 🔥 모바일 화면 크기에 맞춰 자동으로 비율 유지하며 꽉 차게 조절 */
+            max-width: 100vw;
+            max-height: 100vh;
+            object-fit: contain;
+            
+            border: 4px solid #D6B99A; /* 모바일을 위해 테두리 두께 살짝 얇게 조절 */
             border-radius: 16px;
             box-shadow: 0 0 20px rgba(0,0,0,0.8);
             image-rendering: pixelated; 
             cursor: url('마우스_2.png'), auto;
             background-color: #C3CF8B; 
+            /* 🔥 캔버스 내 모바일 제스처 차단 */
+            touch-action: none;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
         }
     </style>
 </head>
@@ -35,7 +49,7 @@
 
 <canvas id="gameCanvas" width="816" height="624"></canvas>
 
-<!-- 🔥 한글이름 오류를 막기 위해 심플한 영어 이름으로 싹 바꿨습니다 -->
+<!-- 심플하게 변경했던 오디오 파일들 -->
 <audio id="bgm" src="bgm.mp3" loop></audio>
 <audio id="sfxStart" src="start.mp3"></audio>
 <audio id="sfxClick" src="click.mp3"></audio>
@@ -75,12 +89,10 @@
     
     const GROUND_Y = 465; 
     
-    // 🔥 렉(랙) 방지용 안전장치 변수
     let animationId; 
 
     const images = {};
     let imagesLoaded = 0;
-    let errorFiles = []; 
     
     const sources = {
         run1: 'UntitledArtwork24 - 1.png',
@@ -130,7 +142,6 @@
         };
 
         images[key].onerror = () => {
-            errorFiles.push(sources[key]);
             imagesLoaded++; 
             if (imagesLoaded === totalImages) {
                 gameState = 'READY'; 
@@ -390,7 +401,6 @@
             drawUI();
             frames++;
             
-            // 🔥 애니메이션 중복 실행 방지
             cancelAnimationFrame(animationId);
             animationId = requestAnimationFrame(animate);
 
@@ -409,7 +419,7 @@
             ctx.textAlign = "center";
             
             if (Math.floor(Date.now() / 500) % 2 === 0) {
-                ctx.fillText("화면을 클릭하여 입장하세요!", canvas.width / 2, canvas.height / 2);
+                ctx.fillText("화면을 터치(클릭)하여 입장하세요!", canvas.width / 2, canvas.height / 2);
             }
             
             cancelAnimationFrame(animationId);
@@ -427,8 +437,8 @@
             ctx.strokeStyle = '#000000';
             
             if (Math.floor(Date.now() / 500) % 2 === 0) {
-                ctx.strokeText("- 화면을 클릭하여 게임 시작 -", canvas.width / 2, canvas.height - 80);
-                ctx.fillText("- 화면을 클릭하여 게임 시작 -", canvas.width / 2, canvas.height - 80);
+                ctx.strokeText("- 터치하여 게임 시작 -", canvas.width / 2, canvas.height - 80);
+                ctx.fillText("- 터치하여 게임 시작 -", canvas.width / 2, canvas.height - 80);
             }
             
             cancelAnimationFrame(animationId);
@@ -442,10 +452,16 @@
         drawStaticScreen(); 
     }
 
-    const handleClick = (e) => {
+    // 모바일 터치 및 마우스 클릭 동시 지원
+    const handleInput = (e) => {
+        // 모바일 스크롤 등의 기본 동작을 방지
+        if(e.type === 'touchstart') e.preventDefault(); 
+        
         const rect = canvas.getBoundingClientRect();
         let clientX = e.clientX || (e.touches && e.touches[0].clientX);
         let clientY = e.clientY || (e.touches && e.touches[0].clientY);
+        
+        // 반응형으로 줄어든 캔버스의 좌표를 원래 비율(816x624)에 맞게 보정
         const clickX = (clientX - rect.left) * (canvas.width / rect.width);
         const clickY = (clientY - rect.top) * (canvas.height / rect.height);
 
@@ -504,7 +520,6 @@
                     playSound(sfxClick);
                     gameState = 'PLAYING';
                     if (!isMuted) bgm.play(); 
-                    // 🔥 중복 방지 애니메이션 호출
                     cancelAnimationFrame(animationId);
                     animationId = requestAnimationFrame(animate);
                     buttonClicked = true;
@@ -569,11 +584,9 @@
         animationId = requestAnimationFrame(animate);
     }
 
-    canvas.addEventListener('mousedown', handleClick);
-    canvas.addEventListener('touchstart', (e) => {
-        if(e.target === canvas) e.preventDefault(); 
-        handleClick(e);
-    }, {passive: false});
+    // 모바일 터치 이벤트와 마우스 이벤트를 모두 지원
+    canvas.addEventListener('mousedown', handleInput);
+    canvas.addEventListener('touchstart', handleInput, {passive: false});
 
     window.addEventListener('keydown', (e) => {
         if ((e.code === 'Space' || e.code === 'ArrowUp') && gameState === 'PLAYING') {
