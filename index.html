@@ -66,14 +66,22 @@
     let tempMuted = false; 
     let audioUnlocked = false; 
 
-    let highScores = JSON.parse(localStorage.getItem('hamsterHighScores')) || [];
+    let highScores = [];
+    try {
+        const savedData = localStorage.getItem('hamsterHighScores');
+        if (savedData) {
+            highScores = JSON.parse(savedData);
+        }
+    } catch (e) {
+        highScores = [];
+    }
 
     function playSound(audioElement) {
         if (!isMuted) {
             audioElement.currentTime = 0; 
             let playPromise = audioElement.play();
             if (playPromise !== undefined) {
-                playPromise.catch(e => console.log("사운드 재생 무시됨:", e));
+                playPromise.catch(e => console.log("사운드 에러:", e));
             }
         }
     }
@@ -84,7 +92,11 @@
     
     let gameSpeed = 7.5; 
     const MAX_SPEED = 18; 
-    let bgScrollX = 0; 
+    
+    // 🔥 배경과 바닥의 스크롤 위치를 따로 관리합니다!
+    let bgSkyScrollX = 0; 
+    let bgGroundScrollX = 0; 
+    
     let nextObstacleFrame = 70;
     let nextItemFrame = 100;
     
@@ -109,7 +121,11 @@
         item: '아이템.png',
         life: '해바라기 생명력.png', 
         bgMain: 'main_bg.png', 
-        bgGame: 'Gemini_Generated_Image_uzi5jmuzi5jmuzi5.png', 
+        
+        // 🔥 전달해주신 이미지 두 장으로 변경!
+        bgSky: '배경.jpg',      
+        bgGround: '바닥.jpg',   
+        
         obstacle: '해바라기_2.png',      
         panel: '환경설정차_2.jpg',       
         btnClose: '창닫기_2.png',        
@@ -156,18 +172,9 @@
     }
 
     const hamster = {
-        x: 80, 
-        width: 100, 
-        height: 100, 
-        y: GROUND_Y - 100, 
-        dy: 0,
-        jumpPower: 22, 
-        gravity: 1.0,
-        grounded: true, 
-        lives: 3, 
-        frameIndex: 1,
-        invincible: false, 
-        invincibleTimer: 0, 
+        x: 80, width: 100, height: 100, 
+        y: GROUND_Y - 100, dy: 0, jumpPower: 22, gravity: 1.0, grounded: true, 
+        lives: 3, frameIndex: 1, invincible: false, invincibleTimer: 0, 
         
         draw() {
             if (this.grounded) {
@@ -249,16 +256,34 @@
     }
 
     function drawBackground() {
-        const bgImg = images.bgGame;
-        if (!bgImg || !bgImg.complete) return;
-        const scale = canvas.height / bgImg.height;
-        const scaledWidth = bgImg.width * scale;
+        const skyImg = images.bgSky;
+        const groundImg = images.bgGround;
+        
+        if (!skyImg || !skyImg.complete || !groundImg || !groundImg.complete) return;
+        
+        const scale = canvas.height / skyImg.height;
+        const scaledWidth = skyImg.width * scale;
 
-        bgScrollX -= (gameSpeed * 0.4);
-        if (bgScrollX <= -scaledWidth) bgScrollX = 0;
+        // 🔥 하늘(배경)은 천천히 움직입니다 (속도의 20%)
+        bgSkyScrollX -= (gameSpeed * 0.2);
+        if (bgSkyScrollX <= -scaledWidth) bgSkyScrollX = 0;
 
-        ctx.drawImage(bgImg, bgScrollX, 0, scaledWidth, canvas.height);
-        ctx.drawImage(bgImg, bgScrollX + scaledWidth, 0, scaledWidth, canvas.height);
+        // 🔥 바닥은 장애물과 똑같이 빠르게 움직입니다 (속도 100%)
+        bgGroundScrollX -= gameSpeed;
+        if (bgGroundScrollX <= -scaledWidth) bgGroundScrollX = 0;
+
+        // 1. 하늘 그리기 (기본 모드)
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.drawImage(skyImg, bgSkyScrollX, 0, scaledWidth, canvas.height);
+        ctx.drawImage(skyImg, bgSkyScrollX + scaledWidth, 0, scaledWidth, canvas.height);
+
+        // 2. 바닥 그리기 (JPG의 까만색이 투명해지도록 마법의 'lighten' 혼합 모드 사용!)
+        ctx.globalCompositeOperation = 'lighten';
+        ctx.drawImage(groundImg, bgGroundScrollX, 0, scaledWidth, canvas.height);
+        ctx.drawImage(groundImg, bgGroundScrollX + scaledWidth, 0, scaledWidth, canvas.height);
+        
+        // 다시 원래 합성 모드로 복구
+        ctx.globalCompositeOperation = 'source-over';
     }
 
     function drawUI() {
@@ -281,16 +306,13 @@
         ctx.fillStyle = "rgba(0,0,0,0.6)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        const panelW = 560;
-        const panelH = 460;
+        const panelW = 560; const panelH = 460;
         const panelX = canvas.width/2 - panelW/2;
         const panelY = canvas.height/2 - panelH/2;
         
         if(images.panel) ctx.drawImage(images.panel, panelX, panelY, panelW, panelH);
 
-        const btnW = 120;
-        const btnH = 120;
-        const spacing = 30; 
+        const btnW = 120; const btnH = 120; const spacing = 30; 
         const totalW = (btnW * 3) + (spacing * 2);
         const startX = canvas.width/2 - totalW/2;
         const btnY = panelY + panelH - btnH - 80; 
@@ -312,8 +334,7 @@
         ctx.font = "40px 'DungGeunMo'";
         ctx.fillText(`최종 점수: ${Math.floor(score)}`, canvas.width / 2, canvas.height / 2 + 10);
 
-        const btnW = 130;
-        const btnH = 130;
+        const btnW = 130; const btnH = 130;
         const btnY = canvas.height / 2 + 70;
 
         if(images.btnResume) ctx.drawImage(images.btnResume, canvas.width/2 - 160, btnY, btnW, btnH);
@@ -340,7 +361,7 @@
         highScores.push(finalScore);
         highScores.sort((a, b) => b - a);
         highScores = highScores.slice(0, 3);
-        localStorage.setItem('hamsterHighScores', JSON.stringify(highScores));
+        try { localStorage.setItem('hamsterHighScores', JSON.stringify(highScores)); } catch (e) {}
     }
 
     function animate(now) {
@@ -392,9 +413,7 @@
                             gameState = 'GAMEOVER';
                             bgm.pause(); 
                             playSound(sfxGameOver); 
-                            
                             saveHighScore(score);
-                            
                             drawGameOver(); 
                             return; 
                         } else {
@@ -402,10 +421,7 @@
                             hamster.invincibleTimer = 90; 
                         }
                     } 
-                    
-                    if (obstacles[i].x < -150) {
-                        obstacles.splice(i, 1);
-                    }
+                    if (obstacles[i].x < -150) obstacles.splice(i, 1);
                 }
 
                 for (let i = items.length - 1; i >= 0; i--) {
@@ -414,9 +430,7 @@
                         score += 50; 
                         playSound(sfxStart); 
                         items.splice(i, 1);
-                    } else if (items[i].x < -150) {
-                        items.splice(i, 1);
-                    }
+                    } else if (items[i].x < -150) items.splice(i, 1);
                 }
 
                 hamster.update();
@@ -453,18 +467,17 @@
             else if (gameState === 'START') {
                 if(images.bgMain) ctx.drawImage(images.bgMain, 0, 0, canvas.width, canvas.height);
                 
-                ctx.font = "36px 'DungGeunMo'";
                 ctx.fillStyle = "#FFFFFF";
+                ctx.strokeStyle = "#000000";
                 ctx.textAlign = "center";
                 ctx.lineWidth = 4;
-                ctx.strokeStyle = '#000000';
+                ctx.font = "36px 'DungGeunMo'";
                 
                 if (Math.floor(Date.now() / 500) % 2 === 0) {
                     ctx.strokeText("- 터치하여 게임 시작 -", canvas.width / 2, canvas.height - 80);
                     ctx.fillText("- 터치하여 게임 시작 -", canvas.width / 2, canvas.height - 80);
                 }
 
-                // 🔥 랭킹 위치를 화면 중간 좌측(Y축 280)으로 이동
                 const startY = 280;
                 ctx.font = "26px 'DungGeunMo'";
                 ctx.textAlign = "left";
@@ -551,13 +564,9 @@
             const hlY = panelY + 140;
             if (clickY >= hlY && clickY <= hlY + 120) {
                 if (clickX >= panelX + 110 && clickX <= panelX + 230) {
-                    tempMuted = true; 
-                    playSound(sfxClick);
-                    buttonClicked = true;
+                    tempMuted = true; playSound(sfxClick); buttonClicked = true;
                 } else if (clickX >= panelX + 330 && clickX <= panelX + 450) {
-                    tempMuted = false; 
-                    playSound(sfxClick);
-                    buttonClicked = true;
+                    tempMuted = false; playSound(sfxClick); buttonClicked = true;
                 }
             }
 
@@ -568,23 +577,16 @@
 
             if (clickY >= btnY && clickY <= btnY + btnH) {
                 if (clickX >= startX && clickX <= startX + btnW) {
-                    isMuted = tempMuted; 
-                    playSound(sfxClick);
-                    gameState = 'PLAYING';
-                    if (!isMuted) bgm.play(); 
-                    buttonClicked = true;
+                    isMuted = tempMuted; playSound(sfxClick); gameState = 'PLAYING';
+                    if (!isMuted) bgm.play(); buttonClicked = true;
                 }
                 else if (clickX >= startX + btnW + spacing && clickX <= startX + btnW*2 + spacing) {
-                    playSound(sfxClick);
-                    gameState = 'PLAYING';
-                    if (!isMuted) bgm.play(); 
-                    buttonClicked = true;
+                    playSound(sfxClick); gameState = 'PLAYING';
+                    if (!isMuted) bgm.play(); buttonClicked = true;
                 }
                 else if (clickX >= startX + (btnW + spacing)*2 && clickX <= startX + (btnW + spacing)*2 + btnW) {
-                    playSound(sfxClick);
-                    gameState = 'START';
+                    playSound(sfxClick); gameState = 'START';
                     if (!isMuted) bgm.play(); 
-                    
                     cancelAnimationFrame(animationId);
                     then = performance.now();
                     animationId = requestAnimationFrame(drawStaticScreen);
@@ -596,19 +598,12 @@
             const btnW = 130; const btnH = 130;
             const btnY = canvas.height / 2 + 70;
 
-            if (clickX >= canvas.width/2 - 160 && clickX <= canvas.width/2 - 160 + btnW &&
-                clickY >= btnY && clickY <= btnY + btnH) {
-                playSound(sfxClick);
-                if (!isMuted) bgm.play(); 
-                resetGame();
-                buttonClicked = true;
+            if (clickX >= canvas.width/2 - 160 && clickX <= canvas.width/2 - 160 + btnW && clickY >= btnY && clickY <= btnY + btnH) {
+                playSound(sfxClick); if (!isMuted) bgm.play(); resetGame(); buttonClicked = true;
             }
-            else if (clickX >= canvas.width/2 + 30 && clickX <= canvas.width/2 + 30 + btnW &&
-                     clickY >= btnY && clickY <= btnY + btnH) {
-                playSound(sfxClick);
-                gameState = 'START';
+            else if (clickX >= canvas.width/2 + 30 && clickX <= canvas.width/2 + 30 + btnW && clickY >= btnY && clickY <= btnY + btnH) {
+                playSound(sfxClick); gameState = 'START';
                 if (!isMuted) bgm.play(); 
-                
                 cancelAnimationFrame(animationId);
                 then = performance.now();
                 animationId = requestAnimationFrame(drawStaticScreen);
@@ -616,9 +611,7 @@
             }
         }
 
-        if (!buttonClicked && gameState === 'PLAYING') {
-            hamster.jump();
-        }
+        if (!buttonClicked && gameState === 'PLAYING') hamster.jump();
     };
 
     function resetGame() {
@@ -626,6 +619,11 @@
         score = 0; frames = 0; 
         
         gameSpeed = 7.5; 
+        
+        // 🔥 초기화할 때 스크롤 위치도 처음으로 되돌립니다.
+        bgSkyScrollX = 0;
+        bgGroundScrollX = 0;
+        
         nextObstacleFrame = 70;
         nextItemFrame = 100;
         
@@ -635,7 +633,7 @@
         hamster.grounded = true; 
         hamster.invincible = false; 
         hamster.invincibleTimer = 0;
-        obstacles = []; items = []; bgScrollX = 0;
+        obstacles = []; items = []; 
         
         cancelAnimationFrame(animationId);
         then = performance.now();
