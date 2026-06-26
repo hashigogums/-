@@ -35,23 +35,22 @@
 
 <canvas id="gameCanvas" width="816" height="624"></canvas>
 
-<audio id="bgm" src="8bit 꿈을 꾸는 소녀.mp3" loop></audio>
-<audio id="sfxStart" src="MP_캐릭터가 동전_ 점수 얻는 띠용 소리.mp3"></audio>
-<audio id="sfxClick" src="MP_똑 클릭 반응음 Yes.mp3"></audio>
-<audio id="sfxGameOver" src="MP_경쾌한 게임 오버(고전느낌).mp3"></audio>
+<!-- 🔥 한글이름 오류를 막기 위해 심플한 영어 이름으로 싹 바꿨습니다 -->
+<audio id="bgm" src="bgm.mp3" loop></audio>
+<audio id="sfxStart" src="start.mp3"></audio>
+<audio id="sfxClick" src="click.mp3"></audio>
+<audio id="sfxGameOver" src="gameover.mp3"></audio>
 
 <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     ctx.imageSmoothingEnabled = false;
 
-    // --- 오디오 제어 ---
     const bgm = document.getElementById('bgm');
     const sfxStart = document.getElementById('sfxStart');
     const sfxClick = document.getElementById('sfxClick');
     const sfxGameOver = document.getElementById('sfxGameOver');
     
-    // 🔥 게임 오버 효과음 볼륨을 40%로 낮춤 (0.0 ~ 1.0)
     sfxGameOver.volume = 0.4;
     
     let isMuted = false;
@@ -75,6 +74,9 @@
     let nextItemFrame = 150;
     
     const GROUND_Y = 465; 
+    
+    // 🔥 렉(랙) 방지용 안전장치 변수
+    let animationId; 
 
     const images = {};
     let imagesLoaded = 0;
@@ -90,8 +92,8 @@
         run7: 'UntitledArtwork24 - 7.png', 
         run8: 'UntitledArtwork24 - 8.png', 
         item: '아이템.png',
-        life: '해바라기 생명력.png', 
-        bgMain: 'main_bg.png', 
+        life: '해바라기 생명력_3.png', 
+        bgMain: 'Gemini_Generated_Image_2req892req892req (1).png', 
         bgGame: 'Gemini_Generated_Image_uzi5jmuzi5jmuzi5.png', 
         obstacle: '해바라기_2.png',      
         panel: '환경설정차_2.jpg',       
@@ -120,8 +122,7 @@
         images[key].onload = () => {
             imagesLoaded++;
             if (imagesLoaded === totalImages) {
-                if (errorFiles.length > 0) alert("⚠️ 폴더에 없는 파일:\n" + errorFiles.join("\n"));
-                gameState = 'READY'; // 로딩 완료 후 준비 상태로 변경
+                gameState = 'READY'; 
                 setTimeout(init, 500);
             } else {
                 drawLoading(); 
@@ -132,8 +133,7 @@
             errorFiles.push(sources[key]);
             imagesLoaded++; 
             if (imagesLoaded === totalImages) {
-                if (errorFiles.length > 0) alert("⚠️ 폴더에 없는 파일:\n" + errorFiles.join("\n"));
-                gameState = 'READY';
+                gameState = 'READY'; 
                 setTimeout(init, 500);
             } else {
                 drawLoading();
@@ -389,7 +389,10 @@
             hamster.update();
             drawUI();
             frames++;
-            requestAnimationFrame(animate);
+            
+            // 🔥 애니메이션 중복 실행 방지
+            cancelAnimationFrame(animationId);
+            animationId = requestAnimationFrame(animate);
 
         } else if (gameState === 'PAUSED') {
             drawPauseMenu();
@@ -398,7 +401,6 @@
 
     function drawStaticScreen() {
         if (gameState === 'READY') {
-            // 브라우저 자동재생 정책(Autoplay)을 우회하기 위한 사전 클릭 화면
             ctx.fillStyle = "#C3CF8B";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
@@ -410,7 +412,8 @@
                 ctx.fillText("화면을 클릭하여 입장하세요!", canvas.width / 2, canvas.height / 2);
             }
             
-            requestAnimationFrame(() => {
+            cancelAnimationFrame(animationId);
+            animationId = requestAnimationFrame(() => {
                 if(gameState === 'READY') drawStaticScreen();
             });
         }
@@ -428,7 +431,8 @@
                 ctx.fillText("- 화면을 클릭하여 게임 시작 -", canvas.width / 2, canvas.height - 80);
             }
             
-            requestAnimationFrame(() => {
+            cancelAnimationFrame(animationId);
+            animationId = requestAnimationFrame(() => {
                 if(gameState === 'START') drawStaticScreen();
             });
         } 
@@ -448,14 +452,12 @@
         let buttonClicked = false;
 
         if (gameState === 'READY') {
-            // 첫 화면(READY) 클릭 시: 메인 화면으로 이동하며 BGM 시작!
             gameState = 'START';
             if(!isMuted) bgm.play().catch(e => console.log(e));
             drawStaticScreen();
             buttonClicked = true;
         }
         else if (gameState === 'START') {
-            // 메인 화면(START) 클릭 시: 게임 시작 (브금은 이어짐)
             playSound(sfxStart); 
             resetGame();
             buttonClicked = true;
@@ -502,20 +504,22 @@
                     playSound(sfxClick);
                     gameState = 'PLAYING';
                     if (!isMuted) bgm.play(); 
-                    requestAnimationFrame(animate);
+                    // 🔥 중복 방지 애니메이션 호출
+                    cancelAnimationFrame(animationId);
+                    animationId = requestAnimationFrame(animate);
                     buttonClicked = true;
                 }
                 else if (clickX >= startX + btnW + spacing && clickX <= startX + btnW*2 + spacing) {
                     playSound(sfxClick);
                     gameState = 'PLAYING';
                     if (!isMuted) bgm.play(); 
-                    requestAnimationFrame(animate);
+                    cancelAnimationFrame(animationId);
+                    animationId = requestAnimationFrame(animate);
                     buttonClicked = true;
                 }
                 else if (clickX >= startX + (btnW + spacing)*2 && clickX <= startX + (btnW + spacing)*2 + btnW) {
                     playSound(sfxClick);
                     gameState = 'START';
-                    // 메인 화면으로 돌아갈 때 브금이 처음부터 나오는 대신 이어지도록 유지합니다.
                     if (!isMuted) bgm.play(); 
                     drawStaticScreen();
                     buttonClicked = true;
@@ -560,7 +564,9 @@
         hamster.invincible = false; 
         hamster.invincibleTimer = 0;
         obstacles = []; items = []; bgScrollX = 0;
-        requestAnimationFrame(animate);
+        
+        cancelAnimationFrame(animationId);
+        animationId = requestAnimationFrame(animate);
     }
 
     canvas.addEventListener('mousedown', handleClick);
