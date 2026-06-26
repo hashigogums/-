@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>달려라 햄스터!</title>
+    <style>
+        @font-face {
+            font-family: 'DungGeunMo';
+            src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_six@1.2/DungGeunMo.woff') format('woff');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #2b2b2b;
+        }
+
+        canvas {
+            border: 8px solid #D6B99A;
+            border-radius: 16px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            image-rendering: pixelated; 
+            cursor: url('마우스_2.png'), auto;
+            background-color: #C3CF8B; 
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="gameCanvas" width="816" height="624"></canvas>
+
+<audio id="bgm" src="8bit 꿈을 꾸는 소녀.mp3" loop></audio>
+<audio id="sfxStart" src="MP_캐릭터가 동전_ 점수 얻는 띠용 소리.mp3"></audio>
+<audio id="sfxClick" src="MP_똑 클릭 반응음 Yes.mp3"></audio>
+<audio id="sfxGameOver" src="MP_경쾌한 게임 오버(고전느낌).mp3"></audio>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+
+    // --- 오디오 제어 ---
+    const bgm = document.getElementById('bgm');
+    const sfxStart = document.getElementById('sfxStart');
+    const sfxClick = document.getElementById('sfxClick');
+    const sfxGameOver = document.getElementById('sfxGameOver');
+    
+    // 🔥 게임 오버 효과음 볼륨을 40%로 낮춤 (0.0 ~ 1.0)
+    sfxGameOver.volume = 0.4;
+    
+    let isMuted = false;
+    let tempMuted = false; 
+
+    function playSound(audioElement) {
+        if (!isMuted) {
+            audioElement.currentTime = 0; 
+            audioElement.play().catch(e => console.log("사운드 에러:", e));
+        }
+    }
+
+    let gameState = 'LOADING'; 
+    let score = 0;
+    let frames = 0;
+    
+    let gameSpeed = 7; 
+    const MAX_SPEED = 16; 
+    let bgScrollX = 0; 
+    let nextObstacleFrame = 80;
+    let nextItemFrame = 150;
+    
+    const GROUND_Y = 465; 
+
+    const images = {};
+    let imagesLoaded = 0;
+    let errorFiles = []; 
+    
+    const sources = {
+        run1: 'UntitledArtwork24 - 1.png',
+        run2: 'UntitledArtwork24 - 2.png',
+        run3: 'UntitledArtwork24 - 3.png',
+        run4: 'UntitledArtwork24 - 4.png',
+        run5: 'UntitledArtwork24 - 5.png',
+        run6: 'UntitledArtwork24 - 6.png',
+        run7: 'UntitledArtwork24 - 7.png', 
+        run8: 'UntitledArtwork24 - 8.png', 
+        item: '아이템.png',
+        life: '해바라기 생명력.png', 
+        bgMain: 'main_bg.png', 
+        bgGame: 'Gemini_Generated_Image_uzi5jmuzi5jmuzi5.png', 
+        obstacle: '해바라기_2.png',      
+        panel: '환경설정차_2.jpg',       
+        btnClose: '창닫기_2.png',        
+        btnPause: '일시정지_2.png',      
+        btnResume: '계속하기_2.png',     
+        btnCheck: '설정저장확인_2.png'   
+    };
+
+    const totalImages = Object.keys(sources).length; 
+
+    function drawLoading() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#5c4a3d";
+        ctx.font = "30px 'DungGeunMo', sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(`게임 에셋 로딩 중... (${imagesLoaded} / ${totalImages})`, canvas.width / 2, canvas.height / 2);
+    }
+
+    drawLoading();
+
+    for (let key in sources) {
+        images[key] = new Image();
+        images[key].src = sources[key];
+        
+        images[key].onload = () => {
+            imagesLoaded++;
+            if (imagesLoaded === totalImages) {
+                if (errorFiles.length > 0) alert("⚠️ 폴더에 없는 파일:\n" + errorFiles.join("\n"));
+                gameState = 'READY'; // 로딩 완료 후 준비 상태로 변경
+                setTimeout(init, 500);
+            } else {
+                drawLoading(); 
+            }
+        };
+
+        images[key].onerror = () => {
+            errorFiles.push(sources[key]);
+            imagesLoaded++; 
+            if (imagesLoaded === totalImages) {
+                if (errorFiles.length > 0) alert("⚠️ 폴더에 없는 파일:\n" + errorFiles.join("\n"));
+                gameState = 'READY';
+                setTimeout(init, 500);
+            } else {
+                drawLoading();
+            }
+        };
+    }
+
+    const hamster = {
+        x: 80, 
+        width: 100, 
+        height: 100, 
+        y: GROUND_Y - 100, 
+        dy: 0,
+        jumpPower: 22, 
+        gravity: 1.0,
+        grounded: true, 
+        lives: 3, 
+        frameIndex: 1,
+        invincible: false, 
+        invincibleTimer: 0, 
+        
+        draw() {
+            if (this.grounded) {
+                if (frames % 4 === 0) { 
+                    this.frameIndex = this.frameIndex < 8 ? this.frameIndex + 1 : 1;
+                }
+            } else {
+                this.frameIndex = 3; 
+            }
+            
+            if (this.invincible) {
+                ctx.globalAlpha = (Math.floor(frames / 5) % 2 === 0) ? 0.3 : 0.8;
+            }
+
+            if(images[`run${this.frameIndex}`]) {
+                ctx.drawImage(images[`run${this.frameIndex}`], this.x, this.y, this.width, this.height);
+            }
+            ctx.globalAlpha = 1.0; 
+        },
+        update() {
+            this.y += this.dy;
+            if (this.y + this.height < GROUND_Y) { 
+                this.dy += this.gravity;
+                this.grounded = false;
+            } else {
+                this.dy = 0;
+                this.grounded = true;
+                this.y = GROUND_Y - this.height;
+            }
+
+            if (this.invincible) {
+                this.invincibleTimer--;
+                if (this.invincibleTimer <= 0) {
+                    this.invincible = false;
+                }
+            }
+            this.draw();
+        },
+        jump() {
+            if (this.grounded) {
+                this.dy = -this.jumpPower;
+                this.grounded = false; 
+            }
+        }
+    };
+
+    let obstacles = [];
+    let items = [];
+
+    class Obstacle {
+        constructor() {
+            this.width = 100;  
+            this.height = 100; 
+            this.x = canvas.width;
+            this.y = GROUND_Y - this.height;
+        }
+        draw() {
+            if(images.obstacle) ctx.drawImage(images.obstacle, this.x, this.y, this.width, this.height);
+        }
+        update() {
+            this.x -= gameSpeed;
+            this.draw();
+        }
+    }
+
+    class Item {
+        constructor() {
+            this.width = 90; 
+            this.height = 90; 
+            this.x = canvas.width;
+            this.y = GROUND_Y - 90 - (Math.random() * 80); 
+        }
+        draw() {
+            if(images.item) ctx.drawImage(images.item, this.x, this.y, this.width, this.height);
+        }
+        update() {
+            this.x -= gameSpeed; this.draw();
+        }
+    }
+
+    function drawBackground() {
+        const bgImg = images.bgGame;
+        if (!bgImg || !bgImg.complete) return;
+        const scale = canvas.height / bgImg.height;
+        const scaledWidth = bgImg.width * scale;
+
+        bgScrollX -= gameSpeed;
+        if (bgScrollX <= -scaledWidth) bgScrollX = 0;
+
+        ctx.drawImage(bgImg, bgScrollX, 0, scaledWidth, canvas.height);
+        ctx.drawImage(bgImg, bgScrollX + scaledWidth, 0, scaledWidth, canvas.height);
+    }
+
+    function drawUI() {
+        for (let i = 0; i < hamster.lives; i++) {
+            if(images.life) ctx.drawImage(images.life, 20 + (i * 60), 20, 50, 50);
+        }
+
+        ctx.font = "28px 'DungGeunMo'";
+        ctx.fillStyle = "#FFFFFF";
+        ctx.textAlign = "left";
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#000000';
+        ctx.strokeText(`SCORE: ${Math.floor(score)}`, 20, 110);
+        ctx.fillText(`SCORE: ${Math.floor(score)}`, 20, 110);
+
+        if(images.btnPause) ctx.drawImage(images.btnPause, canvas.width - 150, 20, 130, 130);
+    }
+
+    function drawPauseMenu() {
+        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const panelW = 560;
+        const panelH = 460;
+        const panelX = canvas.width/2 - panelW/2;
+        const panelY = canvas.height/2 - panelH/2;
+        
+        if(images.panel) ctx.drawImage(images.panel, panelX, panelY, panelW, panelH);
+
+        const btnW = 120;
+        const btnH = 120;
+        const spacing = 30; 
+        const totalW = (btnW * 3) + (spacing * 2);
+        const startX = canvas.width/2 - totalW/2;
+        const btnY = panelY + panelH - btnH - 80; 
+
+        if(images.btnCheck) ctx.drawImage(images.btnCheck, startX, btnY, btnW, btnH);
+        if(images.btnResume) ctx.drawImage(images.btnResume, startX + btnW + spacing, btnY, btnW, btnH);
+        if(images.btnClose) ctx.drawImage(images.btnClose, startX + (btnW + spacing)*2, btnY, btnW, btnH);
+    }
+
+    function drawGameOver() {
+        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.font = "80px 'DungGeunMo'";
+        ctx.fillStyle = "#FFFFFF";
+        ctx.textAlign = "center";
+        ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 80);
+        
+        ctx.font = "40px 'DungGeunMo'";
+        ctx.fillText(`최종 점수: ${Math.floor(score)}`, canvas.width / 2, canvas.height / 2 + 10);
+
+        const btnW = 130;
+        const btnH = 130;
+        const btnY = canvas.height / 2 + 70;
+
+        if(images.btnResume) ctx.drawImage(images.btnResume, canvas.width/2 - 160, btnY, btnW, btnH);
+        if(images.btnClose) ctx.drawImage(images.btnClose, canvas.width/2 + 30, btnY, btnW, btnH);
+
+        ctx.font = "22px 'DungGeunMo'";
+        ctx.fillText("다시하기", canvas.width/2 - 95, btnY + btnH + 30);
+        ctx.fillText("메인으로", canvas.width/2 + 95, btnY + btnH + 30);
+    }
+
+    function checkCollision(rect1, rect2) {
+        const marginX = 25; 
+        const marginY = 25;
+        return (
+            rect1.x + marginX < rect2.x + rect2.width &&
+            rect1.x + rect1.width - marginX > rect2.x &&
+            rect1.y + marginY < rect2.y + rect2.height &&
+            rect1.y + rect1.height - marginY > rect2.y
+        );
+    }
+
+    function animate() {
+        if (gameState === 'PLAYING') {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBackground();
+            
+            score += 0.2;
+            
+            if (frames > 0 && frames % 300 === 0 && gameSpeed < MAX_SPEED) {
+                gameSpeed += 0.5; 
+            }
+
+            if (frames >= nextObstacleFrame) {
+                obstacles.push(new Obstacle());
+                let difficulty = Math.max(0.5, 1 - (frames / 4000));
+                let gap = 50 + Math.random() * (70 * difficulty);
+                nextObstacleFrame = frames + gap;
+                
+                if (Math.abs(nextItemFrame - nextObstacleFrame) < 30) {
+                    nextItemFrame = nextObstacleFrame + 30;
+                }
+            }
+
+            if (frames >= nextItemFrame) {
+                items.push(new Item());
+                nextItemFrame = frames + 80 + Math.random() * 60;
+                
+                if (Math.abs(nextItemFrame - nextObstacleFrame) < 30) {
+                    nextObstacleFrame = nextItemFrame + 30;
+                }
+            }
+
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                obstacles[i].update();
+                
+                if (!hamster.invincible && checkCollision(hamster, obstacles[i])) {
+                    hamster.lives -= 1;
+                    
+                    if (hamster.lives <= 0) {
+                        gameState = 'GAMEOVER';
+                        bgm.pause(); 
+                        playSound(sfxGameOver); 
+                        drawGameOver(); 
+                        return; 
+                    } else {
+                        hamster.invincible = true;
+                        hamster.invincibleTimer = 90; 
+                    }
+                } 
+                
+                if (obstacles[i].x < -150) {
+                    obstacles.splice(i, 1);
+                }
+            }
+
+            for (let i = items.length - 1; i >= 0; i--) {
+                items[i].update();
+                if (checkCollision(hamster, items[i])) {
+                    score += 50; 
+                    playSound(sfxStart); 
+                    items.splice(i, 1);
+                } else if (items[i].x < -150) {
+                    items.splice(i, 1);
+                }
+            }
+
+            hamster.update();
+            drawUI();
+            frames++;
+            requestAnimationFrame(animate);
+
+        } else if (gameState === 'PAUSED') {
+            drawPauseMenu();
+        }
+    }
+
+    function drawStaticScreen() {
+        if (gameState === 'READY') {
+            // 브라우저 자동재생 정책(Autoplay)을 우회하기 위한 사전 클릭 화면
+            ctx.fillStyle = "#C3CF8B";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.font = "40px 'DungGeunMo'";
+            ctx.fillStyle = "#5c4a3d";
+            ctx.textAlign = "center";
+            
+            if (Math.floor(Date.now() / 500) % 2 === 0) {
+                ctx.fillText("화면을 클릭하여 입장하세요!", canvas.width / 2, canvas.height / 2);
+            }
+            
+            requestAnimationFrame(() => {
+                if(gameState === 'READY') drawStaticScreen();
+            });
+        }
+        else if (gameState === 'START') {
+            if(images.bgMain) ctx.drawImage(images.bgMain, 0, 0, canvas.width, canvas.height);
+            
+            ctx.font = "36px 'DungGeunMo'";
+            ctx.fillStyle = "#FFFFFF";
+            ctx.textAlign = "center";
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#000000';
+            
+            if (Math.floor(Date.now() / 500) % 2 === 0) {
+                ctx.strokeText("- 화면을 클릭하여 게임 시작 -", canvas.width / 2, canvas.height - 80);
+                ctx.fillText("- 화면을 클릭하여 게임 시작 -", canvas.width / 2, canvas.height - 80);
+            }
+            
+            requestAnimationFrame(() => {
+                if(gameState === 'START') drawStaticScreen();
+            });
+        } 
+    }
+
+    function init() {
+        drawStaticScreen(); 
+    }
+
+    const handleClick = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        let clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        let clientY = e.clientY || (e.touches && e.touches[0].clientY);
+        const clickX = (clientX - rect.left) * (canvas.width / rect.width);
+        const clickY = (clientY - rect.top) * (canvas.height / rect.height);
+
+        let buttonClicked = false;
+
+        if (gameState === 'READY') {
+            // 첫 화면(READY) 클릭 시: 메인 화면으로 이동하며 BGM 시작!
+            gameState = 'START';
+            if(!isMuted) bgm.play().catch(e => console.log(e));
+            drawStaticScreen();
+            buttonClicked = true;
+        }
+        else if (gameState === 'START') {
+            // 메인 화면(START) 클릭 시: 게임 시작 (브금은 이어짐)
+            playSound(sfxStart); 
+            resetGame();
+            buttonClicked = true;
+        } 
+        else if (gameState === 'PLAYING') {
+            if (clickX >= canvas.width - 150 && clickX <= canvas.width - 20 &&
+                clickY >= 20 && clickY <= 150) {
+                playSound(sfxClick); 
+                gameState = 'PAUSED';
+                tempMuted = isMuted; 
+                bgm.pause(); 
+                animate(); 
+                buttonClicked = true;
+            }
+        }
+        else if (gameState === 'PAUSED') {
+            const panelW = 560; const panelH = 460;
+            const panelX = canvas.width/2 - panelW/2;
+            const panelY = canvas.height/2 - panelH/2;
+
+            const hlY = panelY + 140;
+            if (clickY >= hlY && clickY <= hlY + 120) {
+                if (clickX >= panelX + 110 && clickX <= panelX + 230) {
+                    tempMuted = true; 
+                    playSound(sfxClick);
+                    drawPauseMenu();
+                    buttonClicked = true;
+                } else if (clickX >= panelX + 330 && clickX <= panelX + 450) {
+                    tempMuted = false; 
+                    playSound(sfxClick);
+                    drawPauseMenu();
+                    buttonClicked = true;
+                }
+            }
+
+            const btnW = 120; const btnH = 120; const spacing = 30;
+            const totalW = (btnW * 3) + (spacing * 2);
+            const startX = canvas.width/2 - totalW/2;
+            const btnY = panelY + panelH - btnH - 80;
+
+            if (clickY >= btnY && clickY <= btnY + btnH) {
+                if (clickX >= startX && clickX <= startX + btnW) {
+                    isMuted = tempMuted; 
+                    playSound(sfxClick);
+                    gameState = 'PLAYING';
+                    if (!isMuted) bgm.play(); 
+                    requestAnimationFrame(animate);
+                    buttonClicked = true;
+                }
+                else if (clickX >= startX + btnW + spacing && clickX <= startX + btnW*2 + spacing) {
+                    playSound(sfxClick);
+                    gameState = 'PLAYING';
+                    if (!isMuted) bgm.play(); 
+                    requestAnimationFrame(animate);
+                    buttonClicked = true;
+                }
+                else if (clickX >= startX + (btnW + spacing)*2 && clickX <= startX + (btnW + spacing)*2 + btnW) {
+                    playSound(sfxClick);
+                    gameState = 'START';
+                    // 메인 화면으로 돌아갈 때 브금이 처음부터 나오는 대신 이어지도록 유지합니다.
+                    if (!isMuted) bgm.play(); 
+                    drawStaticScreen();
+                    buttonClicked = true;
+                }
+            }
+        }
+        else if (gameState === 'GAMEOVER') {
+            const btnW = 130; const btnH = 130;
+            const btnY = canvas.height / 2 + 70;
+
+            if (clickX >= canvas.width/2 - 160 && clickX <= canvas.width/2 - 160 + btnW &&
+                clickY >= btnY && clickY <= btnY + btnH) {
+                playSound(sfxClick);
+                if (!isMuted) bgm.play(); 
+                resetGame();
+                buttonClicked = true;
+            }
+            else if (clickX >= canvas.width/2 + 30 && clickX <= canvas.width/2 + 30 + btnW &&
+                     clickY >= btnY && clickY <= btnY + btnH) {
+                playSound(sfxClick);
+                gameState = 'START';
+                if (!isMuted) bgm.play(); 
+                drawStaticScreen();
+                buttonClicked = true;
+            }
+        }
+
+        if (!buttonClicked && gameState === 'PLAYING') {
+            hamster.jump();
+        }
+    };
+
+    function resetGame() {
+        gameState = 'PLAYING';
+        score = 0; frames = 0; gameSpeed = 7; 
+        nextObstacleFrame = 80;
+        nextItemFrame = 150;
+        hamster.lives = 3; 
+        hamster.y = GROUND_Y - hamster.height; 
+        hamster.dy = 0;
+        hamster.grounded = true; 
+        hamster.invincible = false; 
+        hamster.invincibleTimer = 0;
+        obstacles = []; items = []; bgScrollX = 0;
+        requestAnimationFrame(animate);
+    }
+
+    canvas.addEventListener('mousedown', handleClick);
+    canvas.addEventListener('touchstart', (e) => {
+        if(e.target === canvas) e.preventDefault(); 
+        handleClick(e);
+    }, {passive: false});
+
+    window.addEventListener('keydown', (e) => {
+        if ((e.code === 'Space' || e.code === 'ArrowUp') && gameState === 'PLAYING') {
+            hamster.jump();
+            e.preventDefault(); 
+        }
+    });
+
+</script>
+</body>
+</html>
