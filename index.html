@@ -66,7 +66,16 @@
     let tempMuted = false; 
     let audioUnlocked = false; 
 
-    let highScores = JSON.parse(localStorage.getItem('hamsterHighScores')) || [];
+    let highScores = [];
+    try {
+        const savedData = localStorage.getItem('hamsterHighScores');
+        if (savedData) {
+            highScores = JSON.parse(savedData);
+        }
+    } catch (e) {
+        console.log("기록 불러오기 실패, 초기화합니다.");
+        highScores = [];
+    }
 
     function playSound(audioElement) {
         if (!isMuted) {
@@ -254,7 +263,6 @@
         const scale = canvas.height / bgImg.height;
         const scaledWidth = bgImg.width * scale;
 
-        // 🔥 배경 스크롤 속도를 게임 속도의 40%로 대폭 줄임 (원근감 및 눈 피로 감소)
         bgScrollX -= (gameSpeed * 0.4);
         if (bgScrollX <= -scaledWidth) bgScrollX = 0;
 
@@ -341,7 +349,11 @@
         highScores.push(finalScore);
         highScores.sort((a, b) => b - a);
         highScores = highScores.slice(0, 3);
-        localStorage.setItem('hamsterHighScores', JSON.stringify(highScores));
+        try {
+            localStorage.setItem('hamsterHighScores', JSON.stringify(highScores));
+        } catch (e) {
+            console.log("기록 저장 실패");
+        }
     }
 
     function animate(now) {
@@ -454,31 +466,33 @@
             else if (gameState === 'START') {
                 if(images.bgMain) ctx.drawImage(images.bgMain, 0, 0, canvas.width, canvas.height);
                 
-                ctx.font = "36px 'DungGeunMo'";
                 ctx.fillStyle = "#FFFFFF";
+                ctx.strokeStyle = "#000000";
                 ctx.textAlign = "center";
                 ctx.lineWidth = 4;
-                ctx.strokeStyle = '#000000';
+                ctx.font = "36px 'DungGeunMo'";
                 
                 if (Math.floor(Date.now() / 500) % 2 === 0) {
                     ctx.strokeText("- 터치하여 게임 시작 -", canvas.width / 2, canvas.height - 80);
                     ctx.fillText("- 터치하여 게임 시작 -", canvas.width / 2, canvas.height - 80);
                 }
 
-                ctx.font = "26px 'DungGeunMo'";
+                // 🔥 랭킹 위치를 타이틀을 가리지 않도록 중간 좌측으로 이동 (Y좌표 280부터 시작)
+                const startY = 280;
                 ctx.textAlign = "left";
-                ctx.lineWidth = 3;
-                ctx.strokeText("🏆 최고 기록", 20, 50);
-                ctx.fillText("🏆 최고 기록", 20, 50);
+                ctx.lineWidth = 4;
+                ctx.font = "28px 'DungGeunMo'";
+                ctx.strokeText("🏆 최고 기록", 20, startY);
+                ctx.fillText("🏆 최고 기록", 20, startY);
 
                 if (highScores.length === 0) {
-                    ctx.font = "20px 'DungGeunMo'";
-                    ctx.strokeText("- 기록 없음 -", 20, 90);
-                    ctx.fillText("- 기록 없음 -", 20, 90);
-                } else {
                     ctx.font = "22px 'DungGeunMo'";
+                    ctx.strokeText("- 기록 없음 -", 20, startY + 40);
+                    ctx.fillText("- 기록 없음 -", 20, startY + 40);
+                } else {
+                    ctx.font = "24px 'DungGeunMo'";
                     for (let i = 0; i < highScores.length; i++) {
-                        let yPos = 90 + (i * 35);
+                        let yPos = startY + 40 + (i * 35);
                         let text = `${i + 1}등: ${highScores[i]}점`;
                         ctx.strokeText(text, 20, yPos);
                         ctx.fillText(text, 20, yPos);
