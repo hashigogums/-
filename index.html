@@ -45,10 +45,11 @@
 
 <canvas id="gameCanvas" width="816" height="624"></canvas>
 
-<audio id="bgm" src="bgm.mp3" loop></audio>
-<audio id="sfxStart" src="start.mp3"></audio>
-<audio id="sfxClick" src="click.mp3"></audio>
-<audio id="sfxGameOver" src="gameover.mp3"></audio>
+<!-- 🔥 모바일과 PC에서 로딩 지연으로 인해 브금이 씹히는 현상을 막기 위해 preload="auto" 추가 -->
+<audio id="bgm" src="bgm.mp3" loop preload="auto"></audio>
+<audio id="sfxStart" src="start.mp3" preload="auto"></audio>
+<audio id="sfxClick" src="click.mp3" preload="auto"></audio>
+<audio id="sfxGameOver" src="gameover.mp3" preload="auto"></audio>
 
 <script>
     const canvas = document.getElementById('gameCanvas');
@@ -64,12 +65,15 @@
     
     let isMuted = false;
     let tempMuted = false; 
-    let audioUnlocked = false; // 🔥 오디오 잠금 해제 여부 확인
+    let audioUnlocked = false; 
 
     function playSound(audioElement) {
         if (!isMuted) {
             audioElement.currentTime = 0; 
-            audioElement.play().catch(e => console.log("사운드 에러:", e));
+            let playPromise = audioElement.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(e => console.log("사운드 재생 무시됨:", e));
+            }
         }
     }
 
@@ -85,10 +89,9 @@
     
     const GROUND_Y = 465; 
     
-    // 🔥 120Hz 폰 2배속 현상 방지를 위한 FPS 고정 변수
     let animationId; 
     let then = performance.now();
-    const fpsInterval = 1000 / 60; // 1초에 60번(60 FPS)으로 고정
+    const fpsInterval = 1000 / 60; 
 
     const images = {};
     let imagesLoaded = 0;
@@ -320,9 +323,11 @@
         ctx.fillText("메인으로", canvas.width/2 + 95, btnY + btnH + 30);
     }
 
-    function checkCollision(rect1, rect2) {
-        const marginX = 25; 
-        const marginY = 25;
+    // 🔥 핵심 패치 2: 충돌 판정 업그레이드 (isItem 매개변수 추가)
+    function checkCollision(rect1, rect2, isItem = false) {
+        // 아이템일 때는 여백을 40으로 크게 잡아서, 햄스터 몸통 중앙에 닿아야만 판정되도록 수정!
+        const marginX = isItem ? 40 : 25; 
+        const marginY = isItem ? 40 : 25;
         return (
             rect1.x + marginX < rect2.x + rect2.width &&
             rect1.x + rect1.width - marginX > rect2.x &&
@@ -331,14 +336,12 @@
         );
     }
 
-    // 🔥 핵심 패치 1: 120Hz 폰 2배속 현상을 막기 위한 60FPS 고정 애니메이션 루프
     function animate(now) {
         animationId = requestAnimationFrame(animate);
         
         if (!now) now = performance.now();
         let elapsed = now - then;
 
-        // 1초에 60번(약 16.6ms)만 통과시켜서 게임을 그립니다.
         if (elapsed > fpsInterval) {
             then = now - (elapsed % fpsInterval);
 
@@ -397,7 +400,8 @@
 
                 for (let i = items.length - 1; i >= 0; i--) {
                     items[i].update();
-                    if (checkCollision(hamster, items[i])) {
+                    // 🔥 아이템 충돌 판정 시 true를 전달하여 히트박스를 엄격하게 적용
+                    if (checkCollision(hamster, items[i], true)) {
                         score += 50; 
                         playSound(sfxStart); 
                         items.splice(i, 1);
@@ -462,13 +466,14 @@
     const handleInput = (e) => {
         if(e.type === 'touchstart') e.preventDefault(); 
         
-        // 🔥 핵심 패치 2: 첫 터치 시 삼성 인터넷 오디오 락 강제 해제
+        // 브라우저 권한 잠금 해제 (SFX만 짧게 틀었다 멈춤)
         if (!audioUnlocked) {
-            [bgm, sfxStart, sfxClick, sfxGameOver].forEach(a => {
-                a.play().then(() => {
-                    a.pause();
-                    a.currentTime = 0;
-                }).catch(() => {});
+            [sfxStart, sfxClick, sfxGameOver].forEach(a => {
+                a.muted = true;
+                let p = a.play();
+                if (p !== undefined) {
+                    p.then(() => { a.pause(); a.currentTime = 0; a.muted = false; }).catch(()=>{});
+                }
             });
             audioUnlocked = true;
         }
@@ -484,7 +489,16 @@
 
         if (gameState === 'READY') {
             gameState = 'START';
-            if(!isMuted) bgm.play().catch(e => console.log(e));
+            // 🔥 READY 클릭 시 BGM이 안전하게 재생되도록 프라미스 에러 캐치 추가
+            if(!isMuted) {
+                bgm.currentTime = 0;
+                let bgmPromise = bgm.play();
+                if (bgmPromise !== undefined) {
+                    bgmPromise.catch(error => {
+                        console.log("BGM 자동재생 차단됨:", error);
+                    });
+                }
+            }
             buttonClicked = true;
         }
         else if (gameState === 'START') {
@@ -544,7 +558,6 @@
                     gameState = 'START';
                     if (!isMuted) bgm.play(); 
                     
-                    // 정적 화면용 애니메이션 루프로 복귀
                     cancelAnimationFrame(animationId);
                     then = performance.now();
                     animationId = requestAnimationFrame(drawStaticScreen);
