@@ -66,7 +66,15 @@
     let tempMuted = false; 
     let audioUnlocked = false; 
 
-    let highScores = JSON.parse(localStorage.getItem('hamsterHighScores')) || [];
+    let highScores = [];
+    try {
+        const savedData = localStorage.getItem('hamsterHighScores');
+        if (savedData) {
+            highScores = JSON.parse(savedData);
+        }
+    } catch (e) {
+        highScores = [];
+    }
 
     function playSound(audioElement) {
         if (!isMuted) {
@@ -82,9 +90,9 @@
     let score = 0;
     let frames = 0;
     
-    // 🔥 속도를 눈이 편안한 수준으로 대폭 낮추고 고정합니다.
+    // 🔥 기본 속도 설정 (최대 속도는 16으로 제한하여 눈 피로 방지)
     let gameSpeed = 7.5; 
-    const MAX_SPEED = 13; 
+    const MAX_SPEED = 16; 
     
     let bgSkyScrollX = 0; 
     let bgGroundScrollX = 0; 
@@ -362,32 +370,44 @@
                 
                 score += 0.2;
                 
-                // 🔥 속도는 아주 천천히 오르고, 13에서 멈춥니다. (눈 피로 방지)
-                if (frames > 0 && frames % 300 === 0 && gameSpeed < MAX_SPEED) {
-                    gameSpeed += 0.2; 
+                // 🔥 [밸런스 패치] 1500점을 기점으로 속도 증가폭 변경
+                if (score <= 1500) {
+                    // 1500점 전: 300프레임마다 0.2씩 아주 천천히 상승 (최대 11까지만)
+                    if (frames > 0 && frames % 300 === 0 && gameSpeed < 11) {
+                        gameSpeed += 0.2; 
+                    }
+                } else {
+                    // 1500점 이후: 200프레임마다 0.3씩 조금 더 가파르게 상승 (최대 16 제한)
+                    if (frames > 0 && frames % 200 === 0 && gameSpeed < MAX_SPEED) {
+                        gameSpeed += 0.3;
+                    }
                 }
 
                 if (frames >= nextObstacleFrame) {
                     obstacles.push(new Obstacle());
                     
-                    // 🔥 점수가 높아질수록 속도 대신 장애물의 '밀집도'로 난이도를 올립니다.
-                    let minGap = 70;
-                    let maxRandomGap = 60;
+                    // 🔥 [장애물 촘촘 배치] 점수대별로 장애물이 더욱 타이트하게 등장합니다!
+                    let minGap = 65;
+                    let maxRandomGap = 50;
 
-                    if (score <= 1000) {
-                        minGap = 70; maxRandomGap = 60;
+                    if (score <= 500) {
+                        minGap = 65; maxRandomGap = 50;
+                    } else if (score <= 1500) {
+                        minGap = 50; maxRandomGap = 40;
                     } else if (score <= 2500) {
-                        minGap = 55; maxRandomGap = 40;
+                        // 1500점 이후 속도 상승과 맞물려 연타 빈도 증가
+                        minGap = 40; maxRandomGap = 30;
                     } else if (score <= 3500) {
-                        minGap = 45; maxRandomGap = 25;
+                        minGap = 35; maxRandomGap = 20;
                     } else {
-                        // 4000점을 향해가는 촘촘한 장애물 구간 (손가락 리듬이 중요해짐)
-                        minGap = 35; maxRandomGap = 15;
+                        // 3500점 이상: 숨 쉴 틈 없이 쏟아지는 지옥 패턴
+                        minGap = 30; maxRandomGap = 15;
                     }
                     
                     let gap = minGap + Math.random() * maxRandomGap;
                     nextObstacleFrame = frames + gap;
                     
+                    // 아이템과 장애물이 겹치지 않도록 방지
                     if (Math.abs(nextItemFrame - nextObstacleFrame) < 30) {
                         nextItemFrame = nextObstacleFrame + 30;
                     }
