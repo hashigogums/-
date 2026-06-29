@@ -365,4 +365,288 @@
                 if (score <= 500) {
                     // 500점 이하일 땐 300프레임마다 0.3씩 완만하게 속도 상승 (최대 11까지)
                     if (frames > 0 && frames % 300 === 0 && gameSpeed < 11) {
-                        game
+                        gameSpeed += 0.3; 
+                    }
+                } else {
+                    // 500점 초과 시 가속 타이밍이 150프레임으로 빨라지고 0.5씩 팍팍 증가 (최대 18까지)
+                    if (frames > 0 && frames % 150 === 0 && gameSpeed < MAX_SPEED) {
+                        gameSpeed += 0.5;
+                    }
+                }
+
+                if (frames >= nextObstacleFrame) {
+                    obstacles.push(new Obstacle());
+                    
+                    // 🔥 500점 초과 시 점수가 늘어날수록 장애물이 더 빈번히 쏟아지도록 세팅
+                    let difficulty = Math.max(0.4, 1 - (frames / 4000));
+                    if (score > 500) {
+                        let scoreDifficulty = Math.max(0.28, 1 - ((score - 500) / 1200));
+                        difficulty = Math.min(difficulty, scoreDifficulty);
+                    }
+                    
+                    let gap = 55 + Math.random() * (60 * difficulty);
+                    nextObstacleFrame = frames + gap;
+                    
+                    if (Math.abs(nextItemFrame - nextObstacleFrame) < 30) {
+                        nextItemFrame = nextObstacleFrame + 30;
+                    }
+                }
+
+                if (frames >= nextItemFrame) {
+                    items.push(new Item());
+                    nextItemFrame = frames + 60 + Math.random() * 50;
+                    
+                    if (Math.abs(nextItemFrame - nextObstacleFrame) < 30) {
+                        nextObstacleFrame = nextItemFrame + 30;
+                    }
+                }
+
+                for (let i = obstacles.length - 1; i >= 0; i--) {
+                    obstacles[i].update();
+                    
+                    if (!hamster.invincible && checkCollision(hamster, obstacles[i])) {
+                        hamster.lives -= 1;
+                        
+                        if (hamster.lives <= 0) {
+                            gameState = 'GAMEOVER';
+                            bgm.pause(); 
+                            playSound(sfxGameOver); 
+                            saveHighScore(score);
+                            drawGameOver(); 
+                            return; 
+                        } else {
+                            hamster.invincible = true;
+                            hamster.invincibleTimer = 90; 
+                        }
+                    } 
+                    if (obstacles[i].x < -150) obstacles.splice(i, 1);
+                }
+
+                for (let i = items.length - 1; i >= 0; i--) {
+                    items[i].update();
+                    if (checkCollision(hamster, items[i], true)) {
+                        score += 50; 
+                        playSound(sfxStart); 
+                        items.splice(i, 1);
+                    } else if (items[i].x < -150) items.splice(i, 1);
+                }
+
+                hamster.update();
+                drawUI();
+                frames++;
+
+            } else if (gameState === 'PAUSED') {
+                drawPauseMenu();
+            }
+        }
+    }
+
+    function drawStaticScreen(now) {
+        animationId = requestAnimationFrame(drawStaticScreen);
+        
+        if (!now) now = performance.now();
+        let elapsed = now - then;
+
+        if (elapsed > fpsInterval) {
+            then = now - (elapsed % fpsInterval);
+
+            if (gameState === 'READY') {
+                ctx.fillStyle = "#C3CF8B";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.font = "40px 'DungGeunMo'";
+                ctx.fillStyle = "#5c4a3d";
+                ctx.textAlign = "center";
+                
+                if (Math.floor(Date.now() / 500) % 2 === 0) {
+                    ctx.fillText("화면을 터치(클릭)하여 입장하세요!", canvas.width / 2, canvas.height / 2);
+                }
+            }
+            else if (gameState === 'START') {
+                if(images.bgMain) ctx.drawImage(images.bgMain, 0, 0, canvas.width, canvas.height);
+                
+                ctx.font = "36px 'DungGeunMo'";
+                ctx.fillStyle = "#FFFFFF";
+                ctx.textAlign = "center";
+                ctx.lineWidth = 4;
+                ctx.strokeStyle = '#000000';
+                
+                if (Math.floor(Date.now() / 500) % 2 === 0) {
+                    ctx.strokeText("- 터치하여 게임 시작 -", canvas.width / 2, canvas.height - 80);
+                    ctx.fillText("- 터치하여 게임 시작 -", canvas.width / 2, canvas.height - 80);
+                }
+
+                const startY = 280;
+                ctx.font = "26px 'DungGeunMo'";
+                ctx.textAlign = "left";
+                ctx.lineWidth = 3;
+                ctx.strokeText("🏆 최고 기록", 20, startY);
+                ctx.fillText("🏆 최고 기록", 20, startY);
+
+                if (highScores.length === 0) {
+                    ctx.font = "20px 'DungGeunMo'";
+                    ctx.strokeText("- 기록 없음 -", 20, startY + 40);
+                    ctx.fillText("- 기록 없음 -", 20, startY + 40);
+                } else {
+                    ctx.font = "22px 'DungGeunMo'";
+                    for (let i = 0; i < highScores.length; i++) {
+                        let yPos = startY + 40 + (i * 35);
+                        let text = `${i + 1}등: ${highScores[i]}점`;
+                        ctx.strokeText(text, 20, yPos);
+                        ctx.fillText(text, 20, yPos);
+                    }
+                }
+            } 
+        }
+    }
+
+    function init() {
+        then = performance.now();
+        animationId = requestAnimationFrame(drawStaticScreen); 
+    }
+
+    const handleInput = (e) => {
+        if(e.type === 'touchstart') e.preventDefault(); 
+        
+        if (!audioUnlocked) {
+            [sfxStart, sfxClick, sfxGameOver].forEach(a => {
+                a.muted = true;
+                let p = a.play();
+                if (p !== undefined) {
+                    p.then(() => { a.pause(); a.currentTime = 0; a.muted = false; }).catch(()=>{});
+                }
+            });
+            audioUnlocked = true;
+        }
+
+        const rect = canvas.getBoundingClientRect();
+        let clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        let clientY = e.clientY || (e.touches && e.touches[0].clientY);
+        
+        const clickX = (clientX - rect.left) * (canvas.width / rect.width);
+        const clickY = (clientY - rect.top) * (canvas.height / rect.height);
+
+        let buttonClicked = false;
+
+        if (gameState === 'READY') {
+            gameState = 'START';
+            if(!isMuted) {
+                bgm.currentTime = 0;
+                let bgmPromise = bgm.play();
+                if (bgmPromise !== undefined) {
+                    bgmPromise.catch(error => { console.log("BGM 자동재생 대기:", error); });
+                }
+            }
+            buttonClicked = true;
+        }
+        else if (gameState === 'START') {
+            playSound(sfxStart); 
+            resetGame();
+            buttonClicked = true;
+        } 
+        else if (gameState === 'PLAYING') {
+            if (clickX >= canvas.width - 150 && clickX <= canvas.width - 20 &&
+                clickY >= 20 && clickY <= 150) {
+                playSound(sfxClick); 
+                gameState = 'PAUSED';
+                tempMuted = isMuted; 
+                bgm.pause(); 
+                buttonClicked = true;
+            }
+        }
+        else if (gameState === 'PAUSED') {
+            const panelW = 560; const panelH = 460;
+            const panelX = canvas.width/2 - panelW/2;
+            const panelY = canvas.height/2 - panelH/2;
+
+            const hlY = panelY + 140;
+            if (clickY >= hlY && clickY <= hlY + 120) {
+                if (clickX >= panelX + 110 && clickX <= panelX + 230) {
+                    tempMuted = true; playSound(sfxClick); buttonClicked = true;
+                } else if (clickX >= panelX + 330 && clickX <= panelX + 450) {
+                    tempMuted = false; playSound(sfxClick); buttonClicked = true;
+                }
+            }
+
+            const btnW = 120; const btnH = 120; const spacing = 30;
+            const totalW = (btnW * 3) + (spacing * 2);
+            const startX = canvas.width/2 - totalW/2;
+            const btnY = panelY + panelH - btnH - 80;
+
+            if (clickY >= btnY && clickY <= btnY + btnH) {
+                if (clickX >= startX && clickX <= startX + btnW) {
+                    isMuted = tempMuted; playSound(sfxClick); gameState = 'PLAYING';
+                    if (!isMuted) bgm.play(); buttonClicked = true;
+                }
+                else if (clickX >= startX + btnW + spacing && clickX <= startX + btnW*2 + spacing) {
+                    playSound(sfxClick); gameState = 'PLAYING';
+                    if (!isMuted) bgm.play(); buttonClicked = true;
+                }
+                else if (clickX >= startX + (btnW + spacing)*2 && clickX <= startX + (btnW + spacing)*2 + btnW) {
+                    playSound(sfxClick); gameState = 'START';
+                    if (!isMuted) bgm.play(); 
+                    cancelAnimationFrame(animationId);
+                    then = performance.now();
+                    animationId = requestAnimationFrame(drawStaticScreen);
+                    buttonClicked = true;
+                }
+            }
+        }
+        else if (gameState === 'GAMEOVER') {
+            const btnW = 130; const btnH = 130;
+            const btnY = canvas.height / 2 + 70;
+
+            if (clickX >= canvas.width/2 - 160 && clickX <= canvas.width/2 - 160 + btnW && clickY >= btnY && clickY <= btnY + btnH) {
+                playSound(sfxClick); if (!isMuted) bgm.play(); resetGame(); buttonClicked = true;
+            }
+            else if (clickX >= canvas.width/2 + 30 && clickX <= canvas.width/2 + 30 + btnW && clickY >= btnY && clickY <= btnY + btnH) {
+                playSound(sfxClick); gameState = 'START';
+                if (!isMuted) bgm.play(); 
+                cancelAnimationFrame(animationId);
+                then = performance.now();
+                animationId = requestAnimationFrame(drawStaticScreen);
+                buttonClicked = true;
+            }
+        }
+
+        if (!buttonClicked && gameState === 'PLAYING') hamster.jump();
+    };
+
+    function resetGame() {
+        gameState = 'PLAYING';
+        score = 0; frames = 0; 
+        
+        gameSpeed = 7.5; 
+        
+        bgSkyScrollX = 0;
+        bgGroundScrollX = 0;
+        
+        nextObstacleFrame = 70;
+        nextItemFrame = 100;
+        
+        hamster.lives = 3; 
+        hamster.y = GROUND_Y - hamster.height; 
+        hamster.dy = 0;
+        hamster.grounded = true; 
+        hamster.invincible = false; 
+        hamster.invincibleTimer = 0;
+        obstacles = []; items = []; 
+        
+        cancelAnimationFrame(animationId);
+        then = performance.now();
+        animationId = requestAnimationFrame(animate);
+    }
+
+    canvas.addEventListener('mousedown', handleInput);
+    canvas.addEventListener('touchstart', handleInput, {passive: false});
+
+    window.addEventListener('keydown', (e) => {
+        if ((e.code === 'Space' || e.code === 'ArrowUp') && gameState === 'PLAYING') {
+            hamster.jump();
+            e.preventDefault(); 
+        }
+    });
+
+</script>
+</body>
+</html>
