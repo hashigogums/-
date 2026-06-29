@@ -73,7 +73,7 @@
             audioElement.currentTime = 0; 
             let playPromise = audioElement.play();
             if (playPromise !== undefined) {
-                playPromise.catch(e => console.log("사운드 재생 무시됨:", e));
+                playPromise.catch(e => console.log("사운드 에러:", e));
             }
         }
     }
@@ -83,7 +83,7 @@
     let frames = 0;
     
     let gameSpeed = 7.5; 
-    const MAX_SPEED = 18; 
+    const MAX_SPEED = 24; 
     
     let bgSkyScrollX = 0; 
     let bgGroundScrollX = 0; 
@@ -343,7 +343,7 @@
         highScores.push(finalScore);
         highScores.sort((a, b) => b - a);
         highScores = highScores.slice(0, 3);
-        localStorage.setItem('hamsterHighScores', JSON.stringify(highScores));
+        try { localStorage.setItem('hamsterHighScores', JSON.stringify(highScores)); } catch (e) {}
     }
 
     function animate(now) {
@@ -361,30 +361,50 @@
                 
                 score += 0.2;
                 
-                // 🔥 난이도 핵심 실시간 조절 시스템 (500점 기준 분기)
-                if (score <= 500) {
-                    // 500점 이하일 땐 300프레임마다 0.3씩 완만하게 속도 상승 (최대 11까지)
+                // 🔥 [4000점 장벽 밸런스 패치] 점수별 속도 가속 조절
+                if (score <= 1000) {
                     if (frames > 0 && frames % 300 === 0 && gameSpeed < 11) {
                         gameSpeed += 0.3; 
                     }
-                } else {
-                    // 500점 초과 시 가속 타이밍이 150프레임으로 빨라지고 0.5씩 팍팍 증가 (최대 18까지)
-                    if (frames > 0 && frames % 150 === 0 && gameSpeed < MAX_SPEED) {
+                } else if (score <= 2500) {
+                    if (frames > 0 && frames % 200 === 0 && gameSpeed < 16) {
+                        gameSpeed += 0.4;
+                    }
+                } else if (score <= 3500) {
+                    if (frames > 0 && frames % 150 === 0 && gameSpeed < 20) {
                         gameSpeed += 0.5;
+                    }
+                } else {
+                    // 마의 3500~4000구간 광속 돌입
+                    if (frames > 0 && frames % 100 === 0 && gameSpeed < MAX_SPEED) {
+                        gameSpeed += 0.6;
                     }
                 }
 
                 if (frames >= nextObstacleFrame) {
                     obstacles.push(new Obstacle());
                     
-                    // 🔥 500점 초과 시 점수가 늘어날수록 장애물이 더 빈번히 쏟아지도록 세팅
-                    let difficulty = Math.max(0.4, 1 - (frames / 4000));
-                    if (score > 500) {
-                        let scoreDifficulty = Math.max(0.28, 1 - ((score - 500) / 1200));
-                        difficulty = Math.min(difficulty, scoreDifficulty);
+                    // 🔥 [4000점 장벽 밸런스 패치] 장애물 등장 간격을 4000점까지 길게 늘임
+                    let difficulty = 1.0;
+                    let minGap = 55;
+                    let maxRandomGap = 60;
+
+                    if (score <= 1000) {
+                        difficulty = Math.max(0.6, 1 - (score / 2000));
+                        minGap = 55; maxRandomGap = 60;
+                    } else if (score <= 2500) {
+                        difficulty = Math.max(0.4, 0.6 - ((score - 1000) / 4000));
+                        minGap = 45; maxRandomGap = 45;
+                    } else if (score <= 3500) {
+                        difficulty = Math.max(0.25, 0.4 - ((score - 2500) / 3000));
+                        minGap = 38; maxRandomGap = 30;
+                    } else { 
+                        // 3500점 초과, 4000점 저지 장벽 구간 (연타 필수)
+                        difficulty = Math.max(0.1, 0.25 - ((score - 3500) / 1000));
+                        minGap = 34; maxRandomGap = 15;
                     }
                     
-                    let gap = 55 + Math.random() * (60 * difficulty);
+                    let gap = minGap + Math.random() * (maxRandomGap * difficulty);
                     nextObstacleFrame = frames + gap;
                     
                     if (Math.abs(nextItemFrame - nextObstacleFrame) < 30) {
