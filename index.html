@@ -73,7 +73,7 @@
             audioElement.currentTime = 0; 
             let playPromise = audioElement.play();
             if (playPromise !== undefined) {
-                playPromise.catch(e => console.log("사운드 에러:", e));
+                playPromise.catch(e => console.log("사운드 재생 무시됨:", e));
             }
         }
     }
@@ -82,8 +82,9 @@
     let score = 0;
     let frames = 0;
     
+    // 🔥 속도를 눈이 편안한 수준으로 대폭 낮추고 고정합니다.
     let gameSpeed = 7.5; 
-    const MAX_SPEED = 24; 
+    const MAX_SPEED = 13; 
     
     let bgSkyScrollX = 0; 
     let bgGroundScrollX = 0; 
@@ -361,50 +362,30 @@
                 
                 score += 0.2;
                 
-                // 🔥 [4000점 장벽 밸런스 패치] 점수별 속도 가속 조절
-                if (score <= 1000) {
-                    if (frames > 0 && frames % 300 === 0 && gameSpeed < 11) {
-                        gameSpeed += 0.3; 
-                    }
-                } else if (score <= 2500) {
-                    if (frames > 0 && frames % 200 === 0 && gameSpeed < 16) {
-                        gameSpeed += 0.4;
-                    }
-                } else if (score <= 3500) {
-                    if (frames > 0 && frames % 150 === 0 && gameSpeed < 20) {
-                        gameSpeed += 0.5;
-                    }
-                } else {
-                    // 마의 3500~4000구간 광속 돌입
-                    if (frames > 0 && frames % 100 === 0 && gameSpeed < MAX_SPEED) {
-                        gameSpeed += 0.6;
-                    }
+                // 🔥 속도는 아주 천천히 오르고, 13에서 멈춥니다. (눈 피로 방지)
+                if (frames > 0 && frames % 300 === 0 && gameSpeed < MAX_SPEED) {
+                    gameSpeed += 0.2; 
                 }
 
                 if (frames >= nextObstacleFrame) {
                     obstacles.push(new Obstacle());
                     
-                    // 🔥 [4000점 장벽 밸런스 패치] 장애물 등장 간격을 4000점까지 길게 늘임
-                    let difficulty = 1.0;
-                    let minGap = 55;
+                    // 🔥 점수가 높아질수록 속도 대신 장애물의 '밀집도'로 난이도를 올립니다.
+                    let minGap = 70;
                     let maxRandomGap = 60;
 
                     if (score <= 1000) {
-                        difficulty = Math.max(0.6, 1 - (score / 2000));
-                        minGap = 55; maxRandomGap = 60;
+                        minGap = 70; maxRandomGap = 60;
                     } else if (score <= 2500) {
-                        difficulty = Math.max(0.4, 0.6 - ((score - 1000) / 4000));
-                        minGap = 45; maxRandomGap = 45;
+                        minGap = 55; maxRandomGap = 40;
                     } else if (score <= 3500) {
-                        difficulty = Math.max(0.25, 0.4 - ((score - 2500) / 3000));
-                        minGap = 38; maxRandomGap = 30;
-                    } else { 
-                        // 3500점 초과, 4000점 저지 장벽 구간 (연타 필수)
-                        difficulty = Math.max(0.1, 0.25 - ((score - 3500) / 1000));
-                        minGap = 34; maxRandomGap = 15;
+                        minGap = 45; maxRandomGap = 25;
+                    } else {
+                        // 4000점을 향해가는 촘촘한 장애물 구간 (손가락 리듬이 중요해짐)
+                        minGap = 35; maxRandomGap = 15;
                     }
                     
-                    let gap = minGap + Math.random() * (maxRandomGap * difficulty);
+                    let gap = minGap + Math.random() * maxRandomGap;
                     nextObstacleFrame = frames + gap;
                     
                     if (Math.abs(nextItemFrame - nextObstacleFrame) < 30) {
@@ -414,7 +395,7 @@
 
                 if (frames >= nextItemFrame) {
                     items.push(new Item());
-                    nextItemFrame = frames + 60 + Math.random() * 50;
+                    nextItemFrame = frames + 80 + Math.random() * 50;
                     
                     if (Math.abs(nextItemFrame - nextObstacleFrame) < 30) {
                         nextObstacleFrame = nextItemFrame + 30;
