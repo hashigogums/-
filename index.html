@@ -90,9 +90,9 @@
     let score = 0;
     let frames = 0;
     
-    // 🔥 최대 속도를 18로 조정!
+    // 🔥 최대 속도를 22로 상향 조정!
     let gameSpeed = 7.5; 
-    const MAX_SPEED = 18; 
+    const MAX_SPEED = 22; 
     
     let bgSkyScrollX = 0; 
     let bgGroundScrollX = 0; 
@@ -370,36 +370,35 @@
                 
                 score += 0.2;
                 
-                // 🔥 만점을 향한 장기전 속도 가속 조절 (최대 18까지)
-                if (score <= 1000) {
-                    if (frames > 0 && frames % 300 === 0 && gameSpeed < 11) gameSpeed += 0.2; 
-                } else if (score <= 3000) {
-                    if (frames > 0 && frames % 250 === 0 && gameSpeed < 14) gameSpeed += 0.3;
-                } else if (score <= 6000) {
+                // 🔥 속도가 22를 향해 조금씩 상승합니다.
+                if (score <= 1500) {
+                    if (frames > 0 && frames % 250 === 0 && gameSpeed < 12) gameSpeed += 0.3; 
+                } else if (score <= 4000) {
                     if (frames > 0 && frames % 200 === 0 && gameSpeed < 16) gameSpeed += 0.3;
+                } else if (score <= 7000) {
+                    if (frames > 0 && frames % 150 === 0 && gameSpeed < 20) gameSpeed += 0.3;
                 } else {
-                    // 6000점 초과 시 속도가 18을 향해 오름
-                    if (frames > 0 && frames % 150 === 0 && gameSpeed < MAX_SPEED) gameSpeed += 0.2;
+                    if (frames > 0 && frames % 120 === 0 && gameSpeed < MAX_SPEED) gameSpeed += 0.2;
                 }
 
                 if (frames >= nextObstacleFrame) {
                     obstacles.push(new Obstacle());
                     
-                    // 🔥 장애물 젠 간격을 더 촘촘하게 상향 (만점 지향 밸런스)
+                    // 🔥 속도가 빨라질수록 장애물 간격(Frame)을 점차 넓혀줍니다.
                     let minGap = 60;
                     let maxRandomGap = 50;
 
-                    if (score <= 1000) {
+                    if (score <= 1500) {
                         minGap = 60; maxRandomGap = 50;
-                    } else if (score <= 3000) {
-                        minGap = 45; maxRandomGap = 40;
-                    } else if (score <= 6000) {
-                        minGap = 35; maxRandomGap = 30;
-                    } else if (score <= 8000) {
-                        minGap = 30; maxRandomGap = 20;
+                    } else if (score <= 4000) {
+                        // 속도가 16을 향해갈 때 간격 조금 확장
+                        minGap = 65; maxRandomGap = 55;
+                    } else if (score <= 7000) {
+                        // 속도가 20을 향해갈 때 간격 추가 확장
+                        minGap = 70; maxRandomGap = 60;
                     } else {
-                        // 8000점 ~ 만점 구간: 극단적인 연타 방어
-                        minGap = 25; maxRandomGap = 15;
+                        // 속도가 22에 도달하는 후반부에는 간격을 최대한 넓게 줍니다.
+                        minGap = 75; maxRandomGap = 65;
                     }
                     
                     let gap = minGap + Math.random() * maxRandomGap;
@@ -412,8 +411,7 @@
 
                 if (frames >= nextItemFrame) {
                     items.push(new Item());
-                    // 🔥 아이템 등장 간격을 조금 더 줄여서 빈도 증가!
-                    nextItemFrame = frames + 70 + Math.random() * 40; 
+                    nextItemFrame = frames + 80 + Math.random() * 60; 
                     
                     if (Math.abs(nextItemFrame - nextObstacleFrame) < 30) {
                         nextObstacleFrame = nextItemFrame + 30;
