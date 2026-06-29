@@ -90,9 +90,9 @@
     let score = 0;
     let frames = 0;
     
-    // 🔥 기본 속도 설정 (최대 속도는 16으로 제한하여 눈 피로 방지)
+    // 🔥 최대 속도를 18로 조정!
     let gameSpeed = 7.5; 
-    const MAX_SPEED = 16; 
+    const MAX_SPEED = 18; 
     
     let bgSkyScrollX = 0; 
     let bgGroundScrollX = 0; 
@@ -370,44 +370,41 @@
                 
                 score += 0.2;
                 
-                // 🔥 [밸런스 패치] 1500점을 기점으로 속도 증가폭 변경
-                if (score <= 1500) {
-                    // 1500점 전: 300프레임마다 0.2씩 아주 천천히 상승 (최대 11까지만)
-                    if (frames > 0 && frames % 300 === 0 && gameSpeed < 11) {
-                        gameSpeed += 0.2; 
-                    }
+                // 🔥 만점을 향한 장기전 속도 가속 조절 (최대 18까지)
+                if (score <= 1000) {
+                    if (frames > 0 && frames % 300 === 0 && gameSpeed < 11) gameSpeed += 0.2; 
+                } else if (score <= 3000) {
+                    if (frames > 0 && frames % 250 === 0 && gameSpeed < 14) gameSpeed += 0.3;
+                } else if (score <= 6000) {
+                    if (frames > 0 && frames % 200 === 0 && gameSpeed < 16) gameSpeed += 0.3;
                 } else {
-                    // 1500점 이후: 200프레임마다 0.3씩 조금 더 가파르게 상승 (최대 16 제한)
-                    if (frames > 0 && frames % 200 === 0 && gameSpeed < MAX_SPEED) {
-                        gameSpeed += 0.3;
-                    }
+                    // 6000점 초과 시 속도가 18을 향해 오름
+                    if (frames > 0 && frames % 150 === 0 && gameSpeed < MAX_SPEED) gameSpeed += 0.2;
                 }
 
                 if (frames >= nextObstacleFrame) {
                     obstacles.push(new Obstacle());
                     
-                    // 🔥 [장애물 촘촘 배치] 점수대별로 장애물이 더욱 타이트하게 등장합니다!
-                    let minGap = 65;
+                    // 🔥 장애물 젠 간격을 더 촘촘하게 상향 (만점 지향 밸런스)
+                    let minGap = 60;
                     let maxRandomGap = 50;
 
-                    if (score <= 500) {
-                        minGap = 65; maxRandomGap = 50;
-                    } else if (score <= 1500) {
-                        minGap = 50; maxRandomGap = 40;
-                    } else if (score <= 2500) {
-                        // 1500점 이후 속도 상승과 맞물려 연타 빈도 증가
-                        minGap = 40; maxRandomGap = 30;
-                    } else if (score <= 3500) {
-                        minGap = 35; maxRandomGap = 20;
+                    if (score <= 1000) {
+                        minGap = 60; maxRandomGap = 50;
+                    } else if (score <= 3000) {
+                        minGap = 45; maxRandomGap = 40;
+                    } else if (score <= 6000) {
+                        minGap = 35; maxRandomGap = 30;
+                    } else if (score <= 8000) {
+                        minGap = 30; maxRandomGap = 20;
                     } else {
-                        // 3500점 이상: 숨 쉴 틈 없이 쏟아지는 지옥 패턴
-                        minGap = 30; maxRandomGap = 15;
+                        // 8000점 ~ 만점 구간: 극단적인 연타 방어
+                        minGap = 25; maxRandomGap = 15;
                     }
                     
                     let gap = minGap + Math.random() * maxRandomGap;
                     nextObstacleFrame = frames + gap;
                     
-                    // 아이템과 장애물이 겹치지 않도록 방지
                     if (Math.abs(nextItemFrame - nextObstacleFrame) < 30) {
                         nextItemFrame = nextObstacleFrame + 30;
                     }
@@ -415,7 +412,8 @@
 
                 if (frames >= nextItemFrame) {
                     items.push(new Item());
-                    nextItemFrame = frames + 80 + Math.random() * 50;
+                    // 🔥 아이템 등장 간격을 조금 더 줄여서 빈도 증가!
+                    nextItemFrame = frames + 70 + Math.random() * 40; 
                     
                     if (Math.abs(nextItemFrame - nextObstacleFrame) < 30) {
                         nextObstacleFrame = nextItemFrame + 30;
