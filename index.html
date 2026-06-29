@@ -90,9 +90,9 @@
     let score = 0;
     let frames = 0;
     
-    // 🔥 최대 속도를 22로 상향 조정!
+    // 최대 속도는 18로 유지 (만점 지향)
     let gameSpeed = 7.5; 
-    const MAX_SPEED = 22; 
+    const MAX_SPEED = 18; 
     
     let bgSkyScrollX = 0; 
     let bgGroundScrollX = 0; 
@@ -370,51 +370,49 @@
                 
                 score += 0.2;
                 
-                // 🔥 속도가 22를 향해 조금씩 상승합니다.
-                if (score <= 1500) {
-                    if (frames > 0 && frames % 250 === 0 && gameSpeed < 12) gameSpeed += 0.3; 
-                } else if (score <= 4000) {
+                if (score <= 1000) {
+                    if (frames > 0 && frames % 300 === 0 && gameSpeed < 11) gameSpeed += 0.2; 
+                } else if (score <= 3000) {
+                    if (frames > 0 && frames % 250 === 0 && gameSpeed < 14) gameSpeed += 0.3;
+                } else if (score <= 6000) {
                     if (frames > 0 && frames % 200 === 0 && gameSpeed < 16) gameSpeed += 0.3;
-                } else if (score <= 7000) {
-                    if (frames > 0 && frames % 150 === 0 && gameSpeed < 20) gameSpeed += 0.3;
                 } else {
-                    if (frames > 0 && frames % 120 === 0 && gameSpeed < MAX_SPEED) gameSpeed += 0.2;
+                    if (frames > 0 && frames % 150 === 0 && gameSpeed < MAX_SPEED) gameSpeed += 0.2;
                 }
 
                 if (frames >= nextObstacleFrame) {
                     obstacles.push(new Obstacle());
                     
-                    // 🔥 속도가 빨라질수록 장애물 간격(Frame)을 점차 넓혀줍니다.
-                    let minGap = 60;
+                    // 🔥 억까 방지 완벽 패치: 햄스터 체공 시간(약 44프레임)을 고려해 최소 간격을 48프레임으로 절대 보장!
+                    let minGap = 65;
                     let maxRandomGap = 50;
 
-                    if (score <= 1500) {
-                        minGap = 60; maxRandomGap = 50;
-                    } else if (score <= 4000) {
-                        // 속도가 16을 향해갈 때 간격 조금 확장
-                        minGap = 65; maxRandomGap = 55;
-                    } else if (score <= 7000) {
-                        // 속도가 20을 향해갈 때 간격 추가 확장
-                        minGap = 70; maxRandomGap = 60;
+                    if (score <= 1000) {
+                        minGap = 65; maxRandomGap = 50;
+                    } else if (score <= 3000) {
+                        minGap = 55; maxRandomGap = 45;
+                    } else if (score <= 6000) {
+                        minGap = 50; maxRandomGap = 40;
                     } else {
-                        // 속도가 22에 도달하는 후반부에는 간격을 최대한 넓게 줍니다.
-                        minGap = 75; maxRandomGap = 65;
+                        // 만점 구간: 절대 죽는 패턴은 없지만 피지컬이 극도로 필요함 (최소 보장 프레임 48)
+                        minGap = 48; maxRandomGap = 30;
                     }
                     
                     let gap = minGap + Math.random() * maxRandomGap;
                     nextObstacleFrame = frames + gap;
                     
-                    if (Math.abs(nextItemFrame - nextObstacleFrame) < 30) {
-                        nextItemFrame = nextObstacleFrame + 30;
+                    // 아이템과 겹치지 않게 안전 거리(40프레임) 더 넉넉히 확보
+                    if (Math.abs(nextItemFrame - nextObstacleFrame) < 40) {
+                        nextItemFrame = nextObstacleFrame + 40;
                     }
                 }
 
                 if (frames >= nextItemFrame) {
                     items.push(new Item());
-                    nextItemFrame = frames + 80 + Math.random() * 60; 
+                    nextItemFrame = frames + 70 + Math.random() * 40; 
                     
-                    if (Math.abs(nextItemFrame - nextObstacleFrame) < 30) {
-                        nextObstacleFrame = nextItemFrame + 30;
+                    if (Math.abs(nextItemFrame - nextObstacleFrame) < 40) {
+                        nextObstacleFrame = nextItemFrame + 40;
                     }
                 }
 
