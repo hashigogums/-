@@ -90,9 +90,9 @@
     let score = 0;
     let frames = 0;
     
-    // 🔥 최대 속도를 18로 조정!
+    // 최대 속도를 살짝 낮춰 쾌적하게 조절 (17)
     let gameSpeed = 7.5; 
-    const MAX_SPEED = 18; 
+    const MAX_SPEED = 17; 
     
     let bgSkyScrollX = 0; 
     let bgGroundScrollX = 0; 
@@ -370,53 +370,68 @@
                 
                 score += 0.2;
                 
-                // 🔥 만점을 향한 장기전 속도 가속 조절 (최대 18까지)
-                if (score <= 1000) {
-                    if (frames > 0 && frames % 300 === 0 && gameSpeed < 11) gameSpeed += 0.2; 
-                } else if (score <= 3000) {
-                    if (frames > 0 && frames % 250 === 0 && gameSpeed < 14) gameSpeed += 0.3;
-                } else if (score <= 6000) {
-                    if (frames > 0 && frames % 200 === 0 && gameSpeed < 16) gameSpeed += 0.3;
+                let phase1 = Math.min(1.0, score / 5000); 
+                let phase2 = score > 5000 ? Math.min(1.0, (score - 5000) / 3000) : 0;
+                let phase3 = score > 8000 ? Math.min(1.0, (score - 8000) / 2000) : 0;
+
+                // 1. 스피드 조절 (너무 빠르지 않게 고점을 17.0으로 조정)
+                if (score <= 5000) {
+                    gameSpeed = 7.5 + (6.0 * phase1); // 7.5 -> 13.5
+                } else if (score <= 8000) {
+                    gameSpeed = 13.5 + (2.5 * phase2); // 13.5 -> 16.0
                 } else {
-                    // 6000점 초과 시 속도가 18을 향해 오름
-                    if (frames > 0 && frames % 150 === 0 && gameSpeed < MAX_SPEED) gameSpeed += 0.2;
+                    gameSpeed = 16.0 + (1.0 * phase3); // 16.0 -> 17.0
                 }
 
+                // 2. 장애물 등장 설정 (숨막히지 않게 최소 간격 55 보장)
                 if (frames >= nextObstacleFrame) {
                     obstacles.push(new Obstacle());
                     
-                    // 🔥 장애물 젠 간격을 더 촘촘하게 상향 (만점 지향 밸런스)
-                    let minGap = 60;
-                    let maxRandomGap = 50;
+                    let minGap = 75;
+                    let maxRandomGap = 60;
 
-                    if (score <= 1000) {
-                        minGap = 60; maxRandomGap = 50;
-                    } else if (score <= 3000) {
-                        minGap = 45; maxRandomGap = 40;
-                    } else if (score <= 6000) {
-                        minGap = 35; maxRandomGap = 30;
+                    if (score <= 5000) {
+                        minGap = 75 - (10 * phase1); // 75 -> 65
+                        maxRandomGap = 60 - (15 * phase1); // 60 -> 45
                     } else if (score <= 8000) {
-                        minGap = 30; maxRandomGap = 20;
+                        minGap = 65 - (7 * phase2); // 65 -> 58
+                        maxRandomGap = 45 - (10 * phase2); // 45 -> 35
                     } else {
-                        // 8000점 ~ 만점 구간: 극단적인 연타 방어
-                        minGap = 25; maxRandomGap = 15;
+                        minGap = 58 - (3 * phase3); // 58 -> 55 (여유 확보)
+                        maxRandomGap = 35 - (10 * phase3); // 35 -> 25
                     }
                     
-                    let gap = minGap + Math.random() * maxRandomGap;
+                    // 어떤 상황에서도 무조건 55프레임(여유로운 점프) 이상의 간격 보장
+                    let gap = Math.max(55, minGap + Math.random() * maxRandomGap);
                     nextObstacleFrame = frames + gap;
                     
-                    if (Math.abs(nextItemFrame - nextObstacleFrame) < 30) {
-                        nextItemFrame = nextObstacleFrame + 30;
+                    if (Math.abs(nextItemFrame - nextObstacleFrame) < 40) {
+                        nextItemFrame = nextObstacleFrame + 40;
                     }
                 }
 
+                // 3. 아이템 등장 설정 (너무 쏟아지지 않고 기분 좋게 획득할 정도로 조정)
                 if (frames >= nextItemFrame) {
                     items.push(new Item());
-                    // 🔥 아이템 등장 간격을 조금 더 줄여서 빈도 증가!
-                    nextItemFrame = frames + 70 + Math.random() * 40; 
                     
-                    if (Math.abs(nextItemFrame - nextObstacleFrame) < 30) {
-                        nextObstacleFrame = nextItemFrame + 30;
+                    let itemMinGap = 80;
+                    let itemRandomGap = 60;
+
+                    if (score <= 5000) {
+                        itemMinGap = 80 - (10 * phase1); // 80 -> 70
+                        itemRandomGap = 60 - (10 * phase1); // 60 -> 50
+                    } else if (score <= 8000) {
+                        itemMinGap = 70 - (10 * phase2); // 70 -> 60
+                        itemRandomGap = 50 - (10 * phase2); // 50 -> 40
+                    } else {
+                        itemMinGap = 60 - (5 * phase3); // 60 -> 55
+                        itemRandomGap = 40 - (10 * phase3); // 40 -> 30
+                    }
+                    
+                    nextItemFrame = frames + itemMinGap + Math.random() * itemRandomGap;
+                    
+                    if (Math.abs(nextItemFrame - nextObstacleFrame) < 40) {
+                        nextObstacleFrame = nextItemFrame + 40;
                     }
                 }
 
